@@ -24,9 +24,20 @@ const page = (body) => `
 
 app.get("/", async (req, res) => {
   let response
+  let totalMessages = 0 // <- LINHA ADICIONADA DO PASSO 6
+
   try {
     // The FRONTEND server calls the BACKEND server (service-to-service call)
     response = await fetch(`${backendUrl}/api/messages`)
+
+    // --- BLOCO ADICIONADO DO PASSO 6 ---
+    const statsResponse = await fetch(`${backendUrl}/api/stats`)
+    if (statsResponse.ok) {
+      const statsData = await statsResponse.json()
+      totalMessages = statsData.total_messages || 0
+    }
+    // ------------------------------------
+
   } catch (err) {
     console.error(`Could not reach the backend at ${backendUrl}:`, err.message)
     return res.status(502).send(page(`
@@ -50,13 +61,25 @@ app.get("/", async (req, res) => {
     `))
   }
 
+  //desafio extra 3 - adicionado o icon de apagar mensagem
   const list = data.messages
-    .map((m) => `<li><b>${escape(m.author)}</b>: ${escape(m.text)} <small>(${m.created_at})</small></li>`)
+    .map((m) => `
+    <li>
+    <b>${escape(m.author)}</b>: ${escape(m.text)} <small>(${m.created_at})</small>
+    <form method="POST" action="/messages/delete/${m.id}" style="display:inline; margin-left:10px;">
+          <button style="background:none; border:none; cursor:pointer; font-size:15px; vertical-align:middle;" onclick="return confirm('Apagar mensagem?')">🗑️</button>
+        </form>
+    </li>
+    `)
     .join("")
 
   res.send(page(`
     <h1>🖥️ Three-Stackerino Message Board</h1>
     <p>Frontend ✅ → Backend ✅ → Database ✅</p>
+
+    <!-- LINHA ADICIONADA DO PASSO 6 PARA MOSTRAR O TOTAL -->
+    <h3>Total messages: ${totalMessages}</h3>
+
     <form method="POST" action="/messages" style="background: #eef; padding: 16px; border-radius: 8px;">
       <input name="author" placeholder="Your name" maxlength="50" required>
       <input name="text" placeholder="Write a message" maxlength="280" required size="35">
@@ -83,6 +106,17 @@ app.post("/messages", async (req, res) => {
   res.redirect("/")
 })
 
+// desafio extra 3 - faz pedido para apagar ao backend
+app.post("/messages/delete/:id", async (req, res) => {
+  try {
+    await fetch(`${backendUrl}/api/messages/${req.params.id}`, { method: "DELETE" })
+  } catch (err) {
+    console.error(`Could not reach the backend at ${backendUrl}:`, err.message)
+  }
+  res.redirect("/")
+})
+
+
 app.get("/healthcheck", (req, res) => {
   res.status(200).send("The frontend works!")
 })
@@ -94,3 +128,4 @@ const server = app.listen(port, () => {
 
 process.on("SIGTERM", () => server.close(() => process.exit(0)))
 process.on("SIGINT", () => server.close(() => process.exit(0)))
+

@@ -11,6 +11,7 @@ NUMBER = os.getenv("NUMBER", "0")          # e.g. "1" (useful to tell backends a
 
 # WHERE is the database? (the backend's upstream)
 DB_HOST     = os.getenv("DB_HOST", "localhost")
+# Aqui abaixo poderia alterar o database para port 5433, por exemplo
 DB_PORT     = int(os.getenv("DB_PORT", 5432))
 DB_NAME     = os.getenv("DB_NAME", "stackerino")
 DB_USER     = os.getenv("DB_USER", "stackerino")
@@ -79,6 +80,30 @@ def healthcheck():
         return jsonify({"backend": "ok", "database": "ok"}), 200
     except psycopg.Error as err:
         return jsonify({"backend": "ok", "database": "error", "detail": str(err).strip()}), 503
+
+# Número total de mensagens
+@app.get('/api/stats')
+def get_stats():
+    try:
+        with connect_db() as conn:
+            # Executa a query e extrai o primeiro valor do tuplo resultante [0]
+            (total,) = conn.execute("SELECT COUNT(*) FROM messages").fetchone()
+        
+        return jsonify({"total_messages": total}), 200
+    except psycopg.Error as err:
+        return db_error(err)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.delete("/api/messages/<int:message_id>")
+def delete_message(message_id):
+    try:
+        with connect_db() as conn:
+            conn.execute("DELETE FROM messages WHERE id = %s", (message_id,))
+    except psycopg.Error as err:
+        return db_error(err)
+
+    return jsonify({"status": "deleted", "id": message_id}), 200
 
 
 if __name__ == "__main__":
